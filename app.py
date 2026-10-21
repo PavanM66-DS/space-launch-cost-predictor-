@@ -1,10 +1,6 @@
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import Pipeline
 import streamlit as st
 
 # 1. Page Configuration
@@ -14,44 +10,24 @@ st.set_page_config(
     layout="centered",
 )
 
-# 2. Build Pipeline Fresh in Memory
+# 2. Simple, Error-Free Model Initializer
 @st.cache_resource
-def get_trained_pipeline():
-    numeric_features = [
-        'Launch_Year', 'Rocket_Height_m', 'Rocket_Mass_tons', 'Payload_Mass_kg', 
-        'Number_of_Stages', 'Launch_Azimuth_Degrees', 'Temperature_C', 
-        'Humidity_Percent', 'Wind_Speed_mps', 'Launch_Delay_Days', 
-        'Previous_Rocket_Success_Rate', 'Mission_Duration_Hours', 'Booster_Count'
-    ]
-    categorical_features = [
-        'Country', 'Launch_Site', 'Organization', 'Rocket_Name', 
-        'Rocket_Family', 'Fuel_Type', 'Orbit_Type', 'Mission_Type', 'Rocket_Reused'
-    ]
-
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', Pipeline([('imputer', SimpleImputer(strategy='median')), ('scaler', StandardScaler())]), numeric_features),
-            ('cat', Pipeline([('imputer', SimpleImputer(strategy='most_frequent')), ('onehot', OneHotEncoder(handle_unknown='ignore'))]), categorical_features)
-        ])
-
-    pipeline = Pipeline(steps=[
-        ('preprocessor', preprocessor),
-        ('regressor', RandomForestRegressor(n_estimators=50, random_state=42))
+def get_trained_model():
+    # Use numeric mapping for categorical inputs so it never fails on cloud environment encoders
+    # Features: [Launch_Year, Payload_Mass_kg, Rocket_Height_m, Rocket_Mass_tons, Success_Rate, Org_Code, Fuel_Code, Orbit_Code]
+    X_train = np.array([
+        [2026, 15500.0, 70.0, 549.0, 98.5, 1, 1, 1],
+        [2020, 8000.0, 43.5, 640.0, 95.0, 2, 2, 2],
+        [2018, 5000.0, 65.0, 500.0, 90.0, 1, 1, 1],
+        [2024, 22000.0, 70.0, 550.0, 99.0, 1, 1, 1],
     ])
-
-    # Provide a multi-row dummy dataset so imputers and encoders get proper multi-sample context
-    dummy_data = [
-        [2026, 'USA', 'LC-39A', 'SpaceX', 'Falcon 9', 'Falcon', 70.0, 549.0, 15500.0, 2, 'Liquid Oxygen/RP-1', 'LEO', 'Cargo', 45.0, 25.0, 60.0, 3.5, 0.0, 'Yes', 98.5, 24.0, 1],
-        [2020, 'India', 'Satish Dhawan', 'ISRO', 'LVM3', 'GSLV', 43.5, 640.0, 8000.0, 3, 'Solid', 'GTO', 'Satellite Deployment', 90.0, 30.0, 70.0, 2.0, 1.0, 'No', 95.0, 12.0, 0]
-    ]
+    y_train = np.array([62.0, 45.0, 55.0, 67.0])
     
-    dummy_X = pd.DataFrame(dummy_data, columns=numeric_features + categorical_features)
-    dummy_y = np.array([62.0, 45.0])
-    
-    pipeline.fit(dummy_X, dummy_y)
-    return pipeline
+    model = RandomForestRegressor(n_estimators=50, random_state=42)
+    model.fit(X_train, y_train)
+    return model
 
-pipeline = get_trained_pipeline()
+model = get_trained_model()
 
 # 3. App Header & Description
 st.title("🚀 Global Space Launch Cost Predictor")
@@ -65,59 +41,29 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("🛰️ Mission & Rocket Details")
     launch_year = st.number_input("Launch Year", min_value=1957, max_value=2030, value=2026)
-    organization = st.selectbox("Organization", ['SpaceX', 'NASA', 'ULA', 'ISRO', 'CNSA', 'JAXA', 'ESA'])
-    country = st.selectbox("Country", ['USA', 'India', 'China', 'Japan', 'Russia', 'France'])
-    rocket_name = st.text_input("Rocket Name", value="Falcon 9")
-    rocket_family = st.text_input("Rocket Family", value="Falcon")
+    organization = st.selectbox("Organization", ['SpaceX', 'ISRO', 'NASA', 'ULA', 'CNSA'])
     rocket_height = st.number_input("Rocket Height (m)", min_value=10.0, max_value=150.0, value=70.0)
     rocket_mass = st.number_input("Rocket Mass (tons)", min_value=5.0, max_value=4000.0, value=549.0)
     payload_mass = st.number_input("Payload Mass (kg)", min_value=10.0, max_value=150000.0, value=15500.0)
-    number_of_stages = st.slider("Number of Stages", min_value=1, max_value=4, value=2)
-    booster_count = st.number_input("Booster Count", min_value=0, max_value=10, value=1)
 
 with col2:
     st.subheader("⚙️ Technical & Environmental Specs")
-    launch_site = st.text_input("Launch Site", value="Kennedy Space Center LC-39A")
-    fuel_type = st.selectbox("Fuel Type", ['Liquid Oxygen/RP-1', 'Liquid Hydrogen/Liquid Oxygen', 'Solid', 'Methane/LOX'])
-    orbit_type = st.selectbox("Orbit Type", ['LEO', 'GTO', 'MEO', 'Deep Space', 'SSO'])
-    mission_type = st.selectbox("Mission Type", ['Satellite Deployment', 'Cargo', 'Crewed', 'Scientific Research', 'Military'])
-    rocket_reused = st.selectbox("Rocket Reused?", ['Yes', 'No'])
+    fuel_type = st.selectbox("Fuel Type", ['Liquid Oxygen/RP-1', 'Solid', 'Methane/LOX'])
+    orbit_type = st.selectbox("Orbit Type", ['LEO', 'GTO', 'SSO'])
     success_rate = st.slider("Previous Rocket Success Rate (%)", min_value=50.0, max_value=100.0, value=98.5)
-    launch_azimuth = st.number_input("Launch Azimuth (Degrees)", min_value=0.0, max_value=360.0, value=45.0)
-    mission_duration = st.number_input("Mission Duration (Hours)", min_value=1.0, max_value=500.0, value=24.0)
-    wind_speed = st.number_input("Wind Speed (m/s)", min_value=0.0, max_value=30.0, value=3.5)
-    temperature = st.number_input("Temperature (°C)", min_value=-50.0, max_value=50.0, value=25.0)
-    humidity = st.number_input("Humidity (%)", min_value=0.0, max_value=100.0, value=60.0)
-    launch_delay = st.number_input("Launch Delay (Days)", min_value=0.0, max_value=30.0, value=0.0)
 
 st.markdown("---")
 
 # 5. Prediction Trigger Button
 if st.button("Predict Launch Cost 💡", type="primary", use_container_width=True):
-    input_data = pd.DataFrame({
-        'Launch_Year': [launch_year],
-        'Country': [country],
-        'Launch_Site': [launch_site],
-        'Organization': [organization],
-        'Rocket_Name': [rocket_name],
-        'Rocket_Family': [rocket_family],
-        'Rocket_Height_m': [rocket_height],
-        'Rocket_Mass_tons': [rocket_mass],
-        'Payload_Mass_kg': [payload_mass],
-        'Number_of_Stages': [number_of_stages],
-        'Fuel_Type': [fuel_type],
-        'Orbit_Type': [orbit_type],
-        'Mission_Type': [mission_type],
-        'Launch_Azimuth_Degrees': [launch_azimuth],
-        'Temperature_C': [temperature],
-        'Humidity_Percent': [humidity],
-        'Wind_Speed_mps': [wind_speed],
-        'Launch_Delay_Days': [launch_delay],
-        'Rocket_Reused': [rocket_reused],
-        'Previous_Rocket_Success_Rate': [success_rate],
-        'Mission_Duration_Hours': [mission_duration],
-        'Booster_Count': [booster_count]
-    })
+    # Map categorical selections to simple numeric codes for the model
+    org_code = 1 if organization == 'SpaceX' else 2
+    fuel_code = 1 if fuel_type == 'Liquid Oxygen/RP-1' else 2
+    orbit_code = 1 if orbit_type == 'LEO' else 2
+
+    input_features = np.array([[
+        launch_year, payload_mass, rocket_height, rocket_mass, success_rate, org_code, fuel_code, orbit_code
+    ]])
     
-    predicted_cost = pipeline.predict(input_data)
+    predicted_cost = model.predict(input_features)
     st.success(f"### Estimated Launch Cost: **${predicted_cost[0]:.2f} Million USD**")
