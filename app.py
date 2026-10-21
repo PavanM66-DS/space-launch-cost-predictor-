@@ -7,14 +7,14 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 import streamlit as st
 
-# 1. Page Configuration (Must be the very first Streamlit command)
+# 1. Page Configuration
 st.set_page_config(
     page_title="Space Launch Cost Predictor",
     page_icon="🚀",
     layout="centered",
 )
 
-# 2. Build Pipeline Fresh in Memory (No .pkl file required, 100% cloud compatible)
+# 2. Build Pipeline Fresh in Memory
 @st.cache_resource
 def get_trained_pipeline():
     numeric_features = [
@@ -31,18 +31,22 @@ def get_trained_pipeline():
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', Pipeline([('imputer', SimpleImputer(strategy='median')), ('scaler', StandardScaler())]), numeric_features),
-            ('cat', Pipeline([('imputer', SimpleImputer(strategy='constant', fill_value='missing')), ('onehot', OneHotEncoder(handle_unknown='ignore'))]), categorical_features)
+            ('cat', Pipeline([('imputer', SimpleImputer(strategy='most_frequent')), ('onehot', OneHotEncoder(handle_unknown='ignore'))]), categorical_features)
         ])
 
     pipeline = Pipeline(steps=[
         ('preprocessor', preprocessor),
-        ('regressor', RandomForestRegressor(n_estimators=100, random_state=42))
+        ('regressor', RandomForestRegressor(n_estimators=50, random_state=42))
     ])
 
-    # Fit with initial mock data to initialize pipeline transformers cleanly
-    dummy_X = pd.DataFrame([[2026, 'USA', 'LC-39A', 'SpaceX', 'Falcon 9', 'Falcon', 70.0, 549.0, 15500.0, 2, 'Liquid Oxygen/RP-1', 'LEO', 'Cargo', 45.0, 25.0, 60.0, 3.5, 0.0, 'Yes', 98.5, 24.0, 1]], 
-                           columns=numeric_features + categorical_features)
-    dummy_y = np.array([62.0])
+    # Provide a multi-row dummy dataset so imputers and encoders get proper multi-sample context
+    dummy_data = [
+        [2026, 'USA', 'LC-39A', 'SpaceX', 'Falcon 9', 'Falcon', 70.0, 549.0, 15500.0, 2, 'Liquid Oxygen/RP-1', 'LEO', 'Cargo', 45.0, 25.0, 60.0, 3.5, 0.0, 'Yes', 98.5, 24.0, 1],
+        [2020, 'India', 'Satish Dhawan', 'ISRO', 'LVM3', 'GSLV', 43.5, 640.0, 8000.0, 3, 'Solid', 'GTO', 'Satellite Deployment', 90.0, 30.0, 70.0, 2.0, 1.0, 'No', 95.0, 12.0, 0]
+    ]
+    
+    dummy_X = pd.DataFrame(dummy_data, columns=numeric_features + categorical_features)
+    dummy_y = np.array([62.0, 45.0])
     
     pipeline.fit(dummy_X, dummy_y)
     return pipeline
@@ -51,7 +55,7 @@ pipeline = get_trained_pipeline()
 
 # 3. App Header & Description
 st.title("🚀 Global Space Launch Cost Predictor")
-st.write("Enter the mission and rocket specifications below to predict the estimated launch cost using your machine learning pipeline.")
+st.write("Enter the mission and rocket specifications below to predict the estimated launch cost.")
 
 st.markdown("---")
 
