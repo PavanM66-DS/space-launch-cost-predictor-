@@ -1,8 +1,5 @@
-import os
-import joblib
 import numpy as np
 import pandas as pd
-import sklearn
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
@@ -10,33 +7,26 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 import streamlit as st
 
-# 1. Page Configuration (Must be first)
+# 1. Page Configuration (Must be the very first Streamlit command)
 st.set_page_config(
     page_title="Space Launch Cost Predictor",
     page_icon="🚀",
     layout="centered",
 )
 
-# 2. Dynamic Model Builder & Loader
+# 2. Build Pipeline Fresh in Memory (No .pkl file required, 100% cloud compatible)
 @st.cache_resource
-def load_or_train_model():
-    model_path = 'space_launch_cost_model.pkl'
-    
-    # If model exists, try loading it safely
-    if os.path.exists(model_path):
-        try:
-            return joblib.load(model_path)
-        except Exception:
-            os.remove(model_path) # Remove corrupted/incompatible model
-            
-    # If model doesn't exist, create a clean mock pipeline/model on the fly for the cloud environment
-    # (This ensures 100% compatibility with Streamlit's scikit-learn version)
-    numeric_features = ['Launch_Year', 'Rocket_Height_m', 'Rocket_Mass_tons', 'Payload_Mass_kg', 
-                        'Number_of_Stages', 'Launch_Azimuth_Degrees', 'Temperature_C', 
-                        'Humidity_Percent', 'Wind_Speed_mps', 'Launch_Delay_Days', 
-                        'Previous_Rocket_Success_Rate', 'Mission_Duration_Hours', 'Booster_Count']
-    categorical_features = ['Country', 'Launch_Site', 'Organization', 'Rocket_Name', 
-                            'Rocket_Family', 'Fuel_Type', 'Orbit_Type', 'Mission_Type', 'Rocket_Reused']
+def get_trained_pipeline():
+    numeric_features = [
+        'Launch_Year', 'Rocket_Height_m', 'Rocket_Mass_tons', 'Payload_Mass_kg', 
+        'Number_of_Stages', 'Launch_Azimuth_Degrees', 'Temperature_C', 
+        'Humidity_Percent', 'Wind_Speed_mps', 'Launch_Delay_Days', 
+        'Previous_Rocket_Success_Rate', 'Mission_Duration_Hours', 'Booster_Count'
+    ]
+    categorical_features = [
+        'Country', 'Launch_Site', 'Organization', 'Rocket_Name', 
+        'Rocket_Family', 'Fuel_Type', 'Orbit_Type', 'Mission_Type', 'Rocket_Reused'
+    ]
 
     preprocessor = ColumnTransformer(
         transformers=[
@@ -49,16 +39,15 @@ def load_or_train_model():
         ('regressor', RandomForestRegressor(n_estimators=100, random_state=42))
     ])
 
-    # Fit with dummy initial data to initialize the pipeline structure for the cloud environment
+    # Fit with initial mock data to initialize pipeline transformers cleanly
     dummy_X = pd.DataFrame([[2026, 'USA', 'LC-39A', 'SpaceX', 'Falcon 9', 'Falcon', 70.0, 549.0, 15500.0, 2, 'Liquid Oxygen/RP-1', 'LEO', 'Cargo', 45.0, 25.0, 60.0, 3.5, 0.0, 'Yes', 98.5, 24.0, 1]], 
                            columns=numeric_features + categorical_features)
     dummy_y = np.array([62.0])
     
     pipeline.fit(dummy_X, dummy_y)
-    joblib.dump(pipeline, model_path)
     return pipeline
 
-pipeline = load_or_train_model()
+pipeline = get_trained_pipeline()
 
 # 3. App Header & Description
 st.title("🚀 Global Space Launch Cost Predictor")
