@@ -1,7 +1,15 @@
-import streamlit as st
 import pandas as pd
-import joblib
 import numpy as np
+import os
+import joblib
+import streamlit as st
+
+@st.cache_resource
+def load_model():
+    # Load the pre-trained model directly from your project folder
+    return joblib.load('space_launch_cost_model.pkl')
+
+pipeline = load_model()
 
 # 1. Page Configuration
 st.set_page_config(
