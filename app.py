@@ -17,20 +17,25 @@ st.set_page_config(
 def load_model():
   model_path = 'space_launch_cost_model.pkl'
 
-  # If the model file is missing or scikit-learn version mismatches, train it fresh right here!
+  # If the model file is missing, trigger the training script
   if not os.path.exists(model_path):
-    import train_model  # Automatically runs your training script to generate a fresh .pkl
+    try:
+      import train_model
+    except Exception as e:
+      st.error(f'Error running training script: {e}')
 
-  return joblib.load(model_path)
+  # Try loading; if version mismatch occurs, remove old file and retrain
+  try:
+    return joblib.load(model_path)
+  except Exception:
+    if os.path.exists(model_path):
+      os.remove(model_path)
+    import train_model  # Re-runs training to generate a fresh, compatible .pkl
+
+    return joblib.load(model_path)
 
 
-try:
-  pipeline = load_model()
-except Exception as e:
-  # Fallback: if unpickling fails due to version mismatch, force retrain
-  import train_model
-
-  pipeline = joblib.load('space_launch_cost_model.pkl')
+pipeline = load_model()
 
 # 3. App Header & Description
 st.title("🚀 Global Space Launch Cost Predictor")
@@ -121,7 +126,7 @@ st.markdown("---")
 # 5. Prediction Trigger Button
 if st.button("Predict Launch Cost 💡", type="primary", use_container_width=True):
 
-  # Bundle inputs into a DataFrame matching all training columns exactly
+  # Bundle inputs into a DataFrame matching training columns exactly
   input_data = pd.DataFrame({
       'Launch_Year': [launch_year],
       'Country': [country],
@@ -147,7 +152,7 @@ if st.button("Predict Launch Cost 💡", type="primary", use_container_width=Tru
       'Booster_Count': [booster_count],
   })
 
-  # Run pipeline prediction (automatically applies imputation, encoding, and scaling)
+  # Run pipeline prediction
   predicted_cost = pipeline.predict(input_data)
 
   # Display the result prominently
